@@ -1,0 +1,334 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Welcome {{ current_user.username }}</h2>
+
+<div class="row mt-4">
+
+    <div class="col-md-9">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h4>My Projects</h4>
+                <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#newProjectModal">New Project</button>
+            </div>
+            <div class="card-body">
+                <ul class="list-group">
+                    {% for project in current_user.projects %}
+                    <li class="list-group-item">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <h5>{{ project.name }}</h5>
+                            <div>
+                                <button class="btn btn-sm btn-info" data-project-id="{{ project.id }}" onclick="showSettings()">Settings</button>
+                                <a href="{{ url_for('project', project_id=project.id) }}" class="btn btn-sm btn-warning">Edit</a>
+                                <a href="/selenium" class="btn btn-sm btn-primary">Run</a>
+                            </div>
+                        </div>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h4>Execution Results</h4>
+            </div>
+            <div class="card-body">
+                <div id="results">
+                    {% if result %}
+                        <pre>{{ result }}</pre>
+                    {% else %}
+                        <p>No results yet. Run a project to see output.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- New Project Modal -->
+<div class="modal fade" id="newProjectModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form action="{{ url_for('new_project') }}" method="POST" enctype="multipart/form-data">
+                <div class="modal-header">
+                    <h5 class="modal-title">New Project</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Project Name</label>
+                        <input type="text" class="form-control" name="name" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Source Code</label>
+                        <input type="file" class="form-control" name="code" required>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="submit" class="btn btn-primary">Create Project</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Project Modal -->
+<div class="modal fade" id="editProjectModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <form id="editProjectForm" method="POST">
+                <div class="modal-header">
+                    <h5 class="modal-title">Edit Project</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="d-flex">
+                        <div class="d-flex flex-column" style="width: 250px;">
+                            <div class="file-tree p-2 border-end" style="height: 300px; overflow: auto;">
+                                <div id="fileTree"></div>
+                            </div>
+                            <div class="p-2 border-end">
+                                <h6>Script Helpers</h6>
+                                <div class="helper-section mb-3">
+                                    <button class="btn btn-sm btn-primary mb-2 w-100" onclick="toggleHelper('goto')">Go to URL</button>
+                                    <div id="gotoHelper" class="helper-form" style="display: none;">
+                                        <input type="text" class="form-control form-control-sm mb-2" id="gotoUrl" placeholder="Enter URL">
+                                        <button class="btn btn-sm btn-success w-100" onclick="insertGoToUrlWithParam()">Insert</button>
+                                    </div>
+                                </div>
+                                <div class="helper-section mb-3">
+                                    <button class="btn btn-sm btn-primary mb-2 w-100" onclick="toggleHelper('click')">Click Element</button>
+                                    <div id="clickHelper" class="helper-form" style="display: none;">
+                                        <input type="text" class="form-control form-control-sm mb-2" id="clickSelector" placeholder="CSS Selector">
+                                        <button class="btn btn-sm btn-success w-100" onclick="insertClickElementWithParam()">Insert</button>
+                                    </div>
+                                </div>
+                                <div class="helper-section mb-3">
+                                    <button class="btn btn-sm btn-primary mb-2 w-100" onclick="toggleHelper('wait')">Wait for Element</button>
+                                    <div id="waitHelper" class="helper-form" style="display: none;">
+                                        <input type="text" class="form-control form-control-sm mb-2" id="waitSelector" placeholder="CSS Selector">
+                                        <input type="number" class="form-control form-control-sm mb-2" id="waitTimeout" placeholder="Timeout (seconds)" value="10">
+                                        <button class="btn btn-sm btn-success w-100" onclick="insertWaitForElementWithParam()">Insert</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="flex-grow-1">
+                            <div class="mb-3">
+                                <div id="editor" style="height: 500px;"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <input type="hidden" name="files" id="filesInput">
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="submit" class="btn btn-primary">Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Settings Modal -->
+<div class="modal fade" id="settingsModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form id="settingsForm">
+                <div class="modal-header">
+                    <h5 class="modal-title">Project Settings</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Browser Type</label>
+                        <select class="form-control" name="browser">
+                            <option value="chrome">Chrome</option>
+                            <option value="firefox">Firefox</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Headless Mode</label>
+                        <select class="form-control" name="headless">
+                            <option value="true">Yes</option>
+                            <option value="false">No</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Use Proxy</label>
+                        <select class="form-control" name="use_proxy">
+                            <option value="false">No</option>
+                            <option value="true">Yes</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Proxy Address</label>
+                        <input type="text" class="form-control" name="proxy_address" placeholder="ip:port">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Thread Count</label>
+                        <input type="number" class="form-control" name="thread_count" min="1" max="10" value="1">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="submit" class="btn btn-primary">Save Settings</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js"></script>
+<style>
+.editor-container {
+    height: 600px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+}
+.dark-theme {
+    background-color: #1e1e1e;
+    color: #fff;
+}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.36.1/min/vs/loader.min.js"></script>
+<script>
+const defaultScript = `from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+
+def run_script():
+    # Setup Chrome options
+    options = webdriver.ChromeOptions()
+    options.add_argument('--headless')
+    options.add_argument('--no-sandbox')
+
+    # Initialize the driver
+    driver = webdriver.Chrome(options=options)
+
+    try:
+        # Your automation code here
+        driver.get("https://example.com")
+
+    finally:
+        driver.quit()
+
+if __name__ == "__main__":
+    run_script()
+`;
+
+function toggleHelper(helper) {
+    const helpers = ['goto', 'click', 'wait'];
+    helpers.forEach(h => {
+        const el = document.getElementById(`${h}Helper`);
+        el.style.display = h === helper ? 
+            (el.style.display === 'none' ? 'block' : 'none') : 'none';
+    });
+}
+
+function insertGoToUrlWithParam() {
+    const url = document.getElementById('gotoUrl').value || 'https://example.com';
+    editor.trigger('keyboard', 'type', {
+        text: `driver.get("${url}")\n`
+    });
+}
+
+function insertClickElementWithParam() {
+    const selector = document.getElementById('clickSelector').value || 'selector';
+    editor.trigger('keyboard', 'type', {
+        text: `element = driver.find_element(By.CSS_SELECTOR, "${selector}")\nelement.click()\n`
+    });
+}
+
+function insertWaitForElementWithParam() {
+    const selector = document.getElementById('waitSelector').value || 'selector';
+    const timeout = document.getElementById('waitTimeout').value || 10;
+    editor.trigger('keyboard', 'type', {
+        text: `element = WebDriverWait(driver, ${timeout}).until(\n    EC.presence_of_element_located((By.CSS_SELECTOR, "${selector}"))\n)\n`
+    });
+}
+
+function toggleTheme() {
+    const isDark = document.getElementById('darkMode').checked;
+    document.body.classList.toggle('dark-theme', isDark); // Apply theme to body
+    monaco.editor.setTheme(isDark ? 'vs-dark' : 'vs');
+}
+
+require.config({ paths: { vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.36.1/min/vs' }});
+require(['vs/editor/editor.main'], function() {
+    editor = monaco.editor.create(document.getElementById('editor'), {
+        value: defaultScript,
+        language: 'python',
+        theme: 'vs',
+        automaticLayout: true
+    });
+});
+let editor;
+
+
+function renderFileTree(files, parentEl) {
+    parentEl.innerHTML = '';
+    Object.entries(files).forEach(([name, content]) => {
+        const item = document.createElement('div');
+        item.className = 'ps-2';
+        if (typeof content === 'object') {
+            item.innerHTML = `<div class="folder mb-1">📁 ${name}</div>`;
+            const subFolder = document.createElement('div');
+            renderFileTree(content, subFolder);
+            item.appendChild(subFolder);
+        } else {
+            item.innerHTML = `<div class="file mb-1" onclick="openFile('${name}', ${JSON.stringify(content)})">📄 ${name}</div>`;
+        }
+        parentEl.appendChild(item);
+    });
+}
+
+function openFile(name, content) {
+    editor.setValue(content);
+    const ext = name.split('.').pop();
+    if (ext === 'py') editor.setModelLanguage(editor.getModel(), 'python');
+    else if (ext === 'js') editor.setModelLanguage(editor.getModel(), 'javascript');
+}
+
+async function editProject(id) {
+    const modal = new bootstrap.Modal(document.getElementById('editProjectModal'));
+    const response = await fetch(`/project/${id}/files`);
+    const files = await response.json();
+    renderFileTree(files, document.getElementById('fileTree'));
+    document.getElementById('editProjectForm').onsubmit = async (e) => {
+        e.preventDefault();
+        const formData = new FormData(e.target);
+        formData.set('files', JSON.stringify(files));
+        await fetch(`/project/${id}/edit`, {
+            method: 'POST',
+            body: formData
+        });
+        modal.hide();
+        location.reload();
+    };
+    modal.show();
+}
+
+function showSettings() {
+    const projectId = this.getAttribute('data-project-id');
+    const modal = new bootstrap.Modal(document.getElementById('settingsModal'));
+    const form = document.getElementById('settingsForm');
+    form.onsubmit = async (e) => {
+        e.preventDefault();
+        const formData = new FormData(form);
+        const settings = Object.fromEntries(formData);
+        await fetch(`/project/${projectId}/settings`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(settings)
+        });
+        modal.hide();
+    };
+    modal.show();
+}
+</script>
+{% endblock %}
